@@ -1,8 +1,7 @@
 import asyncio
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from hummingbot.connector.connector_base import ConnectorBase
-from hummingbot.connector.exchange.paper_trade.trading_pair import TradingPair
 from hummingbot.data_feed.market_data_provider import MarketDataProvider
 from hummingbot.strategy.script_strategy_base import ScriptStrategyBase
 
@@ -10,30 +9,52 @@ from hummingbot.strategy.script_strategy_base import ScriptStrategyBase
 class DynamicOrderbookDemo(ScriptStrategyBase):
     """
     Demo script showing dynamic order book initialization and removal.
-    - Starts with BTC-USDT
-    - Adds SOL-USDT after 10 seconds
-    - Adds ETH-USDT after 15 seconds
-    - Removes both SOL-USDT and ETH-USDT after 25 seconds
+
+    The script uses one connector for the strategy (markets) but can display
+    order books from a different exchange (order_book_exchange).
+
+    Timeline:
+    - Starts with initial_trading_pairs
+    - Adds pairs from add_trading_pairs after add_pairs_delay seconds
+    - Removes pairs from remove_trading_pairs after remove_pairs_delay seconds
 
     Order book data is displayed in format_status() (use `status` command to view).
 
     Usage: start --script dynamic_orderbook_demo.py
     """
 
-    markets = {"binance": {"BTC-USDT"}}
+    # ===========================================
+    # CONFIGURATION - Modify these parameters
+    # ===========================================
 
-    # Configuration
-    ORDER_BOOK_DEPTH = 5  # Number of levels to display
-    HISTOGRAM_RANGE_BPS = 50  # ±50 bps from mid price
-    CHART_HEIGHT = 12  # Height of depth chart in rows
+    # Exchange to use for order book data (can be different from trading exchange)
+    # Options: "binance", "bybit", "kraken", "gate_io", "kucoin", etc.
+    order_book_exchange: str = "kraken"
 
+    # Trading pairs to add dynamically
+    add_trading_pairs: Set[str] = {"SOL-USDT", "ETH-USDT"}
+
+    # Trading pairs to remove dynamically (must be subset of add_trading_pairs)
+    remove_trading_pairs: Set[str] = {"SOL-USDT", "ETH-USDT"}
+
+    # Timing configuration (in seconds)
+    add_pairs_delay: float = 10.0  # Add pairs after this many seconds
+    remove_pairs_delay: float = 25.0  # Remove pairs after this many seconds
+
+    # Display configuration
+    ORDER_BOOK_DEPTH: int = 5  # Number of levels to display
+    HISTOGRAM_RANGE_BPS: int = 50  # ±50 bps from mid price
+    CHART_HEIGHT: int = 12  # Height of depth chart in rows
+    markets = {"binance_paper_trade": {"BTC-USDT"}}
+
+    # ===========================================
+    # Strategy setup - uses order_book_exchange
+    # ===========================================
     def __init__(self, connectors: Dict[str, ConnectorBase]):
         super().__init__(connectors)
         self._start_timestamp = None
-        self._sol_added = False
-        self._eth_added = False
-        self._sol_removed = False
-        self._eth_removed = False
+        self._pairs_added: Set[str] = set()
+        self._pairs_removed: Set[str] = set()
         self._market_data_provider = MarketDataProvider(connectors)
 
     def on_tick(self):
@@ -42,28 +63,21 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
 
         elapsed = self.current_timestamp - self._start_timestamp
 
-        # Add SOL-USDT after 10 seconds
-        if elapsed >= 10 and not self._sol_added:
-            self._sol_added = True
-            self.logger().info(">>> ADDING SOL-USDT ORDER BOOK <<<")
-            asyncio.create_task(self._add_trading_pair("SOL-USDT"))
+        # Add trading pairs after add_pairs_delay
+        if elapsed >= self.add_pairs_delay:
+            for pair in self.add_trading_pairs:
+                if pair not in self._pairs_added:
+                    self._pairs_added.add(pair)
+                    self.logger().info(f">>> ADDING {pair} ORDER BOOK <<<")
+                    asyncio.create_task(self._add_trading_pair(pair))
 
-        # Add ETH-USDT after 15 seconds
-        if elapsed >= 15 and not self._eth_added:
-            self._eth_added = True
-            self.logger().info(">>> ADDING ETH-USDT ORDER BOOK <<<")
-            asyncio.create_task(self._add_trading_pair("ETH-USDT"))
-
-        # Remove both SOL-USDT and ETH-USDT after 25 seconds
-        if elapsed >= 25 and not self._sol_removed and self._sol_added:
-            self._sol_removed = True
-            self.logger().info(">>> REMOVING SOL-USDT ORDER BOOK <<<")
-            asyncio.create_task(self._remove_trading_pair("SOL-USDT"))
-
-        if elapsed >= 25 and not self._eth_removed and self._eth_added:
-            self._eth_removed = True
-            self.logger().info(">>> REMOVING ETH-USDT ORDER BOOK <<<")
-            asyncio.create_task(self._remove_trading_pair("ETH-USDT"))
+        # Remove trading pairs after remove_pairs_delay
+        if elapsed >= self.remove_pairs_delay:
+            for pair in self.remove_trading_pairs:
+                if pair not in self._pairs_removed and pair in self._pairs_added:
+                    self._pairs_removed.add(pair)
+                    self.logger().info(f">>> REMOVING {pair} ORDER BOOK <<<")
+                    asyncio.create_task(self._remove_trading_pair(pair))
 
     def format_status(self) -> str:
         """
@@ -74,26 +88,49 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
             return "Market connectors are not ready."
 
         lines = []
-        connector = self.connectors["binance"]
         elapsed = self.current_timestamp - self._start_timestamp if self._start_timestamp else 0
 
         lines.append("\n" + "=" * 80)
-        lines.append(f"  DYNAMIC ORDER BOOK DEMO | Elapsed: {elapsed:.1f}s")
+        lines.append(f"  DYNAMIC ORDER BOOK DEMO | Exchange: {self.order_book_exchange} | Elapsed: {elapsed:.1f}s")
         lines.append("=" * 80)
 
         # Timeline status
         lines.append("\n  Timeline:")
+        add_pairs_str = ", ".join(self.add_trading_pairs) if self.add_trading_pairs else "None"
+        remove_pairs_str = ", ".join(self.remove_trading_pairs) if self.remove_trading_pairs else "None"
+        all_added = self.add_trading_pairs <= self._pairs_added
+        all_removed = self.remove_trading_pairs <= self._pairs_removed
+
         lines.append(
-            f"    [{'✓' if self._sol_added else '○'}] 10s - Add SOL-USDT" + (" (added)" if self._sol_added else ""))
+            f"    [{'✓' if all_added else '○'}] {self.add_pairs_delay:.0f}s - Add {add_pairs_str}"
+            + (" (added)" if all_added else "")
+        )
         lines.append(
-            f"    [{'✓' if self._eth_added else '○'}] 15s - Add ETH-USDT" + (" (added)" if self._eth_added else ""))
-        lines.append(f"    [{'✓' if self._sol_removed else '○'}] 25s - Remove SOL-USDT & ETH-USDT" + (
-            " (removed)" if self._sol_removed else ""))
+            f"    [{'✓' if all_removed else '○'}] {self.remove_pairs_delay:.0f}s - Remove {remove_pairs_str}"
+            + (" (removed)" if all_removed else "")
+        )
+
+        # Check if the non-trading connector has been started
+        connector = self._market_data_provider.get_connector_with_fallback(self.order_book_exchange)
+        is_started = self._market_data_provider._non_trading_connectors_started.get(
+            self.order_book_exchange, False
+        ) if self.order_book_exchange not in self._market_data_provider.connectors else True
+
+        if not is_started:
+            lines.append(f"\n  Waiting for first trading pair to be added...")
+            lines.append(f"  (Order book connector will start at {self.add_pairs_delay:.0f}s)")
+            lines.append("\n" + "=" * 80)
+            return "\n".join(lines)
 
         # Get tracked pairs from order book tracker
         tracker = connector.order_book_tracker
         tracked_pairs = list(tracker.order_books.keys())
         lines.append(f"\n  Tracked Pairs: {tracked_pairs}")
+
+        if not tracked_pairs:
+            lines.append("\n  No order books currently tracked.")
+            lines.append("\n" + "=" * 80)
+            return "\n".join(lines)
 
         # Display order book for each pair
         for pair in tracked_pairs:
@@ -268,22 +305,14 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
         return lines
 
     async def _add_trading_pair(self, trading_pair: str):
+        """Add a trading pair to the order book tracker."""
         try:
-            success = await self._market_data_provider.initialize_order_book("binance", trading_pair)
+            success = await self._market_data_provider.initialize_order_book(
+                self.order_book_exchange, trading_pair
+            )
             if not success:
                 self.logger().error(f"Failed to add {trading_pair} to order book tracker")
                 return
-
-            # For paper_trade connector, also add to _trading_pairs dict
-            connector = self.connectors["binance"]
-            if hasattr(connector, '_trading_pairs') and isinstance(connector._trading_pairs, dict):
-                base, quote = trading_pair.split("-")
-                exchange_pair = f"{base}{quote}"
-                connector._trading_pairs[trading_pair] = TradingPair(
-                    trading_pair=exchange_pair,
-                    base_asset=base,
-                    quote_asset=quote
-                )
 
             self.logger().info(f"Successfully added {trading_pair}!")
 
@@ -291,16 +320,14 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
             self.logger().exception(f"Error adding {trading_pair}: {e}")
 
     async def _remove_trading_pair(self, trading_pair: str):
+        """Remove a trading pair from the order book tracker."""
         try:
-            success = await self._market_data_provider.remove_order_book("binance", trading_pair)
+            success = await self._market_data_provider.remove_order_book(
+                self.order_book_exchange, trading_pair
+            )
             if not success:
                 self.logger().error(f"Failed to remove {trading_pair} from order book tracker")
                 return
-
-            # For paper_trade connector, also remove from _trading_pairs dict
-            connector = self.connectors["binance"]
-            if hasattr(connector, '_trading_pairs') and isinstance(connector._trading_pairs, dict):
-                connector._trading_pairs.pop(trading_pair, None)
 
             self.logger().info(f"Successfully removed {trading_pair}!")
 
