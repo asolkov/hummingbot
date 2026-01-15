@@ -391,6 +391,8 @@ class MarketDataProvider:
         Dynamically initializes order book for a trading pair on the specified connector.
         This subscribes to the order book WebSocket channel and starts tracking the pair.
 
+        For perpetual connectors, this also initializes funding info and other perpetual-specific data.
+
         :param connector_name: str
         :param trading_pair: str
         :return: True if successful, False otherwise
@@ -413,12 +415,9 @@ class MarketDataProvider:
                 # Wait for order book to be initialized
                 await self._wait_for_order_book_initialized(connector, trading_pair)
                 return True
-            else:
-                # Connector already started - use dynamic subscription
-                return await connector.order_book_tracker.add_trading_pair(trading_pair)
 
-        # For regular connectors, just add the trading pair dynamically
-        return await connector.order_book_tracker.add_trading_pair(trading_pair)
+        # Add trading pair dynamically via connector method
+        return await connector.add_trading_pair(trading_pair)
 
     async def _wait_for_order_book_initialized(
         self, connector: ConnectorBase, trading_pair: str, timeout: float = 30.0
@@ -466,6 +465,8 @@ class MarketDataProvider:
         Removes order book tracking for a trading pair from the specified connector.
         This unsubscribes from the WebSocket channel and stops tracking the pair.
 
+        For perpetual connectors, this also cleans up funding info and other perpetual-specific data.
+
         :param connector_name: str
         :param trading_pair: str
         :return: True if successful, False otherwise
@@ -474,7 +475,9 @@ class MarketDataProvider:
         if not hasattr(connector, 'order_book_tracker'):
             self.logger().warning(f"Connector {connector_name} does not have order_book_tracker")
             return False
-        return await connector.order_book_tracker.remove_trading_pair(trading_pair)
+
+        # Remove trading pair via connector method
+        return await connector.remove_trading_pair(trading_pair)
 
     async def remove_order_books(self, connector_name: str, trading_pairs: List[str]) -> Dict[str, bool]:
         """

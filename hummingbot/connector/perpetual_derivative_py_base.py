@@ -373,16 +373,13 @@ class PerpetualDerivativePyBase(ExchangePyBase, ABC):
     async def add_trading_pair(self, trading_pair: str) -> bool:
         """
         Dynamically adds a trading pair to the perpetual connector.
-        This method handles all perpetual-specific initialization including:
-        - Fetching and initializing funding info
-        - Adding to the order book tracker
-        - Updating internal trading pairs list
+        Overrides ExchangePyBase to also handle funding info initialization.
 
         :param trading_pair: the trading pair to add (e.g., "BTC-USDT")
         :return: True if successfully added, False otherwise
         """
         try:
-            # Step 1: Fetch funding info for the new pair
+            # Step 1: Fetch and initialize funding info (perpetual-specific)
             self.logger().info(f"Fetching funding info for {trading_pair}...")
             funding_info = await self._orderbook_ds.get_funding_info(trading_pair)
             self._perpetual_trading.initialize_funding_info(funding_info)
@@ -390,8 +387,8 @@ class PerpetualDerivativePyBase(ExchangePyBase, ABC):
             # Step 2: Add to perpetual trading's trading pairs list
             self._perpetual_trading.add_trading_pair(trading_pair)
 
-            # Step 3: Add to order book tracker (handles WebSocket subscription + order book)
-            success = await self.order_book_tracker.add_trading_pair(trading_pair)
+            # Step 3: Call parent to handle order book (WebSocket subscription + snapshot)
+            success = await super().add_trading_pair(trading_pair)
             if not success:
                 # Rollback on failure
                 self._perpetual_trading.remove_trading_pair(trading_pair)
@@ -411,22 +408,19 @@ class PerpetualDerivativePyBase(ExchangePyBase, ABC):
     async def remove_trading_pair(self, trading_pair: str) -> bool:
         """
         Dynamically removes a trading pair from the perpetual connector.
-        This method cleans up all perpetual-specific data including:
-        - Removing from order book tracker
-        - Cleaning up funding info
-        - Removing from internal trading pairs list
+        Overrides ExchangePyBase to also clean up funding info.
 
         :param trading_pair: the trading pair to remove (e.g., "BTC-USDT")
         :return: True if successfully removed, False otherwise
         """
         try:
-            # Step 1: Remove from order book tracker
-            success = await self.order_book_tracker.remove_trading_pair(trading_pair)
+            # Step 1: Call parent to handle order book removal
+            success = await super().remove_trading_pair(trading_pair)
             if not success:
                 self.logger().warning(f"Failed to remove {trading_pair} from order book tracker")
                 # Continue with cleanup anyway
 
-            # Step 2: Clean up perpetual trading data (funding info, trading pairs list)
+            # Step 2: Clean up perpetual-specific data (funding info, trading pairs list)
             self._perpetual_trading.remove_trading_pair(trading_pair)
 
             self.logger().info(f"Successfully removed trading pair {trading_pair} from perpetual connector")
