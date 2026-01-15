@@ -117,7 +117,7 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
         ) if self.order_book_exchange not in self._market_data_provider.connectors else True
 
         if not is_started:
-            lines.append(f"\n  Waiting for first trading pair to be added...")
+            lines.append("\n  Waiting for first trading pair to be added...")
             lines.append(f"  (Order book connector will start at {self.add_pairs_delay:.0f}s)")
             lines.append("\n" + "=" * 80)
             return "\n".join(lines)

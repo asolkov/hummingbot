@@ -804,7 +804,7 @@ class BybitPerpetualAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
         self.assertNotIn("ETH-USDT", self.data_source._trading_pairs)
         self.assertEqual(1, mock_ws.send.call_count)  # 1 message with all topics
         self.assertTrue(
-            self._is_logged("INFO", f"Unsubscribed from ETH-USDT order book, trade and funding info channels")
+            self._is_logged("INFO", "Unsubscribed from ETH-USDT order book, trade and funding info channels")
         )
 
     async def test_unsubscribe_from_trading_pair_websocket_not_connected(self):
@@ -817,7 +817,7 @@ class BybitPerpetualAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
         self.assertTrue(
             self._is_logged(
                 "WARNING",
-                f"Cannot unsubscribe from ETH-USDT: linear (USDT-margined) WebSocket not connected"
+                "Cannot unsubscribe from ETH-USDT: linear (USDT-margined) WebSocket not connected"
             )
         )
 
@@ -846,5 +846,5 @@ class BybitPerpetualAPIOrderBookDataSourceTests(IsolatedAsyncioWrapperTestCase):
 
         self.assertFalse(result)
         self.assertTrue(
-            self._is_logged("ERROR", f"Error unsubscribing from ETH-USDT")
+            self._is_logged("ERROR", "Error unsubscribing from ETH-USDT")
         )
