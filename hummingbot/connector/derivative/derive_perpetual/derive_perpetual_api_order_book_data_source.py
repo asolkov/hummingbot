@@ -304,6 +304,12 @@ class DerivePerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             await self._ws_assistant.send(subscribe_request)
 
             self.add_trading_pair(trading_pair)
+
+            # Wait for WebSocket subscription to be established and start receiving messages
+            # This prevents the race condition where _request_order_book_snapshot tries to
+            # read from the queue before any messages have arrived
+            await asyncio.sleep(2.0)
+
             self.logger().info(f"Successfully subscribed to {trading_pair}")
             return True
 
