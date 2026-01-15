@@ -370,6 +370,74 @@ class PerpetualDerivativePyBase(ExchangePyBase, ABC):
             funding_info = await self._orderbook_ds.get_funding_info(trading_pair)
             self._perpetual_trading.initialize_funding_info(funding_info)
 
+    async def add_trading_pair(self, trading_pair: str) -> bool:
+        """
+        Dynamically adds a trading pair to the perpetual connector.
+        This method handles all perpetual-specific initialization including:
+        - Fetching and initializing funding info
+        - Adding to the order book tracker
+        - Updating internal trading pairs list
+
+        :param trading_pair: the trading pair to add (e.g., "BTC-USDT")
+        :return: True if successfully added, False otherwise
+        """
+        try:
+            # Step 1: Fetch funding info for the new pair
+            self.logger().info(f"Fetching funding info for {trading_pair}...")
+            funding_info = await self._orderbook_ds.get_funding_info(trading_pair)
+            self._perpetual_trading.initialize_funding_info(funding_info)
+
+            # Step 2: Add to perpetual trading's trading pairs list
+            self._perpetual_trading.add_trading_pair(trading_pair)
+
+            # Step 3: Add to order book tracker (handles WebSocket subscription + order book)
+            success = await self.order_book_tracker.add_trading_pair(trading_pair)
+            if not success:
+                # Rollback on failure
+                self._perpetual_trading.remove_trading_pair(trading_pair)
+                return False
+
+            self.logger().info(f"Successfully added trading pair {trading_pair} to perpetual connector")
+            return True
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().exception(f"Error adding trading pair {trading_pair}")
+            # Attempt cleanup on failure
+            self._perpetual_trading.remove_trading_pair(trading_pair)
+            return False
+
+    async def remove_trading_pair(self, trading_pair: str) -> bool:
+        """
+        Dynamically removes a trading pair from the perpetual connector.
+        This method cleans up all perpetual-specific data including:
+        - Removing from order book tracker
+        - Cleaning up funding info
+        - Removing from internal trading pairs list
+
+        :param trading_pair: the trading pair to remove (e.g., "BTC-USDT")
+        :return: True if successfully removed, False otherwise
+        """
+        try:
+            # Step 1: Remove from order book tracker
+            success = await self.order_book_tracker.remove_trading_pair(trading_pair)
+            if not success:
+                self.logger().warning(f"Failed to remove {trading_pair} from order book tracker")
+                # Continue with cleanup anyway
+
+            # Step 2: Clean up perpetual trading data (funding info, trading pairs list)
+            self._perpetual_trading.remove_trading_pair(trading_pair)
+
+            self.logger().info(f"Successfully removed trading pair {trading_pair} from perpetual connector")
+            return True
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().exception(f"Error removing trading pair {trading_pair}")
+            return False
+
     async def _funding_payment_polling_loop(self):
         """
         Periodically calls _update_funding_payment(), responsible for handling all funding payments.
