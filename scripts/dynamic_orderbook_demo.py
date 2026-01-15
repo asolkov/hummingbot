@@ -1,7 +1,10 @@
 import asyncio
-from typing import Dict, List, Set
+from decimal import Decimal
+from typing import Dict, List, Optional, Set
 
 from hummingbot.connector.connector_base import ConnectorBase
+from hummingbot.connector.perpetual_derivative_py_base import PerpetualDerivativePyBase
+from hummingbot.core.data_type.funding_info import FundingInfo
 from hummingbot.data_feed.market_data_provider import MarketDataProvider
 from hummingbot.strategy.script_strategy_base import ScriptStrategyBase
 
@@ -20,6 +23,11 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
 
     Order book data is displayed in format_status() (use `status` command to view).
 
+    For perpetual connectors, the script also:
+    - Displays funding info (mark price, index price, funding rate) for each pair
+    - Validates that funding info is properly initialized when pairs are added
+    - Validates that funding info is properly cleaned up when pairs are removed
+
     Usage: start --script dynamic_orderbook_demo.py
     """
 
@@ -29,7 +37,7 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
 
     # Exchange to use for order book data (can be different from trading exchange)
     # Options: "binance", "bybit", "kraken", "gate_io", "kucoin", etc.
-    order_book_exchange: str = "kraken"
+    order_book_exchange: str = "binance_perpetual"
 
     # Trading pairs to add dynamically
     add_trading_pairs: Set[str] = {"SOL-USDT", "ETH-USDT"}
@@ -136,6 +144,13 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
         for pair in tracked_pairs:
             lines.append("\n" + "-" * 80)
             lines.extend(self._format_order_book(connector, pair))
+
+        # Display funding info for perpetual connectors
+        if self._is_perpetual_connector(connector):
+            lines.append("\n" + "-" * 80)
+            lines.append("  FUNDING INFO (Perpetual Connector)")
+            lines.append("-" * 80)
+            lines.extend(self._format_funding_info(connector, tracked_pairs))
 
         lines.append("\n" + "=" * 80)
         return "\n".join(lines)
@@ -304,6 +319,55 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
 
         return lines
 
+    def _is_perpetual_connector(self, connector: ConnectorBase) -> bool:
+        """Check if the connector is a perpetual/derivative connector."""
+        return isinstance(connector, PerpetualDerivativePyBase)
+
+    def _format_funding_info(self, connector: ConnectorBase, trading_pairs: List[str]) -> List[str]:
+        """Format funding info for perpetual connectors."""
+        lines = []
+
+        if not self._is_perpetual_connector(connector):
+            lines.append("  Not a perpetual connector - funding info N/A")
+            return lines
+
+        # Get the perpetual trading instance
+        perpetual_trading = connector._perpetual_trading
+        funding_info_dict = perpetual_trading.funding_info
+
+        lines.append("")
+        lines.append(f"  {'Trading Pair':<16} {'Mark Price':>14} {'Index Price':>14} {'Funding Rate':>14} {'Status':<12}")
+        lines.append(f"  {'-' * 16} {'-' * 14} {'-' * 14} {'-' * 14} {'-' * 12}")
+
+        for pair in trading_pairs:
+            try:
+                funding_info: Optional[FundingInfo] = funding_info_dict.get(pair)
+                if funding_info is None:
+                    lines.append(f"  {pair:<16} {'N/A':>14} {'N/A':>14} {'N/A':>14} {'NOT INIT':^12}")
+                else:
+                    mark_price = funding_info.mark_price
+                    index_price = funding_info.index_price
+                    rate = funding_info.rate
+                    # Format rate as percentage (e.g., 0.0001 -> 0.01%)
+                    rate_pct = rate * Decimal("100")
+                    lines.append(
+                        f"  {pair:<16} {mark_price:>14.4f} {index_price:>14.4f} {rate_pct:>13.4f}% {'✓ READY':^12}"
+                    )
+            except Exception as e:
+                lines.append(f"  {pair:<16} Error: {str(e)[:40]}")
+
+        # Summary
+        initialized_count = sum(1 for p in trading_pairs if p in funding_info_dict)
+        total_count = len(trading_pairs)
+        lines.append("")
+        lines.append(f"  Funding Info Status: {initialized_count}/{total_count} pairs initialized")
+
+        if initialized_count < total_count:
+            missing = [p for p in trading_pairs if p not in funding_info_dict]
+            lines.append(f"  Missing: {', '.join(missing)}")
+
+        return lines
+
     async def _add_trading_pair(self, trading_pair: str):
         """Add a trading pair to the order book tracker."""
         try:
@@ -315,6 +379,11 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
                 return
 
             self.logger().info(f"Successfully added {trading_pair}!")
+
+            # Validate funding info for perpetual connectors
+            connector = self._market_data_provider.get_connector_with_fallback(self.order_book_exchange)
+            if self._is_perpetual_connector(connector):
+                await self._validate_funding_info(connector, trading_pair)
 
         except Exception as e:
             self.logger().exception(f"Error adding {trading_pair}: {e}")
@@ -331,5 +400,46 @@ class DynamicOrderbookDemo(ScriptStrategyBase):
 
             self.logger().info(f"Successfully removed {trading_pair}!")
 
+            # Validate funding info cleanup for perpetual connectors
+            connector = self._market_data_provider.get_connector_with_fallback(self.order_book_exchange)
+            if self._is_perpetual_connector(connector):
+                perpetual_trading = connector._perpetual_trading
+                if trading_pair in perpetual_trading.funding_info:
+                    self.logger().warning(f"Funding info for {trading_pair} was NOT cleaned up!")
+                else:
+                    self.logger().info(f"Funding info for {trading_pair} properly cleaned up")
+
         except Exception as e:
             self.logger().exception(f"Error removing {trading_pair}: {e}")
+
+    async def _validate_funding_info(self, connector: ConnectorBase, trading_pair: str):
+        """Validate that funding info is properly initialized for a trading pair."""
+        try:
+            perpetual_trading = connector._perpetual_trading
+            funding_info_dict = perpetual_trading.funding_info
+
+            if trading_pair not in funding_info_dict:
+                self.logger().error(
+                    f"FUNDING INFO NOT INITIALIZED for {trading_pair}! "
+                    "This indicates the dynamic pair addition didn't properly initialize funding info."
+                )
+                return
+
+            funding_info = funding_info_dict[trading_pair]
+            self.logger().info(
+                f"✓ Funding info VALIDATED for {trading_pair}: "
+                f"mark_price={funding_info.mark_price:.4f}, "
+                f"index_price={funding_info.index_price:.4f}, "
+                f"rate={funding_info.rate:.6f}"
+            )
+
+            # Also check that the trading pair is in the perpetual trading's trading pairs list
+            if trading_pair not in perpetual_trading._trading_pairs:
+                self.logger().warning(
+                    f"Trading pair {trading_pair} not in perpetual_trading._trading_pairs list"
+                )
+            else:
+                self.logger().info(f"✓ Trading pair {trading_pair} properly added to perpetual trading pairs list")
+
+        except Exception as e:
+            self.logger().exception(f"Error validating funding info for {trading_pair}: {e}")
