@@ -12,9 +12,14 @@ from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFa
 
 
 class HeadersContentRESTPreProcessor(RESTPreProcessorBase):
+    def __init__(self, domain: str = CONSTANTS.DEFAULT_DOMAIN):
+        self._domain = domain
+
     async def pre_process(self, request: RESTRequest) -> RESTRequest:
         request.headers = request.headers or {}
         request.headers.update({"Content-Type": "application/json"})
+        if self._domain == CONSTANTS.DEMO_DOMAIN:
+            request.headers.update({"x-simulated-trading": "1"})
         return request
 
 
@@ -23,16 +28,17 @@ def build_api_factory(
         time_synchronizer: Optional[TimeSynchronizer] = None,
         time_provider: Optional[Callable] = None,
         auth: Optional[AuthBase] = None,
+        domain: str = CONSTANTS.DEFAULT_DOMAIN,
 ) -> WebAssistantsFactory:
     throttler = throttler or create_throttler()
     time_synchronizer = time_synchronizer or TimeSynchronizer()
-    time_provider = time_provider or (lambda: get_current_server_time(throttler=throttler, domain=CONSTANTS.DEFAULT_DOMAIN))
+    time_provider = time_provider or (lambda: get_current_server_time(throttler=throttler, domain=domain))
     api_factory = WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
             TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
-            HeadersContentRESTPreProcessor(),
+            HeadersContentRESTPreProcessor(domain=domain),
         ],
     )
     return api_factory

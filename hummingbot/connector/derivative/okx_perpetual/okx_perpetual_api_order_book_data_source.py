@@ -89,7 +89,13 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         if not bool(self._trading_rules):
             resp = await self._request_trading_rules_info()
             for rule in resp["data"]:
-                self._trading_rules[rule["instId"]] = float(rule["ctVal"])
+                ct_val = rule.get("ctVal", "")
+                # Skip instruments with empty/invalid ctVal (common on OKX Demo)
+                if ct_val and ct_val.strip():
+                    try:
+                        self._trading_rules[rule["instId"]] = float(ct_val)
+                    except (ValueError, TypeError):
+                        pass  # Skip invalid entries
         return self._trading_rules
 
     async def _request_trading_rules_info(self) -> Dict[str, Any]:

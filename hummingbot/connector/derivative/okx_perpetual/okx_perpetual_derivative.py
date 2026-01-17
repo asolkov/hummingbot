@@ -70,7 +70,8 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
     @property
     def name(self) -> str:
-        return CONSTANTS.EXCHANGE_NAME
+        # Return domain to differentiate demo from live (okx_perpetual vs okx_perpetual_demo)
+        return self._domain
 
     @property
     def rate_limits_rules(self) -> List[RateLimit]:
@@ -161,6 +162,7 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             throttler=self._throttler,
             time_synchronizer=self._time_synchronizer,
             auth=self._auth,
+            domain=self._domain,
         )
 
     def _create_order_book_data_source(self) -> OrderBookTrackerDataSource:
@@ -188,7 +190,10 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
     def start(self, clock: Clock, timestamp: float):
         super().start(clock, timestamp)
-        if self._domain == CONSTANTS.DEFAULT_DOMAIN and self.is_trading_required:
+        if self._domain in (CONSTANTS.DEFAULT_DOMAIN, CONSTANTS.DEMO_DOMAIN, CONSTANTS.AWS_DOMAIN) and self.is_trading_required:
+            # Set internal mode to HEDGE immediately (ensures correct posSide even if API call fails)
+            self._perpetual_trading.set_position_mode(PositionMode.HEDGE)
+            # Also try to set it on the exchange (may fail if positions exist, which is ok)
             self.set_position_mode(PositionMode.HEDGE)
 
     def _get_fee(self,

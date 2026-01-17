@@ -64,3 +64,4 @@ dependencies:
   - zlib>=1.2.13
   - pip:
     - injective-py==1.12.*
+    - psycopg[binary]>=3.1
