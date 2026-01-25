@@ -857,10 +857,16 @@ class MQTTGateway(Node):
                 print(f"DEBUG MQTT: Running endpoint {type(endpoint).__name__}", flush=True)
                 endpoint.run()
 
-        if with_health:
-            self._start_health_monitoring_loop()
+        print("DEBUG MQTT: Endpoint loop completed", flush=True)
 
+        if with_health:
+            print("DEBUG MQTT: Starting health monitoring loop", flush=True)
+            self._start_health_monitoring_loop()
+            print("DEBUG MQTT: Health monitoring loop started", flush=True)
+
+        print("DEBUG MQTT: Broadcasting online status", flush=True)
         self.broadcast_status_update("online", msg_type="availability")
+        print("DEBUG MQTT: Online status broadcast complete", flush=True)
 
     def stop(self, with_health: bool = True):
         self.broadcast_status_update("offline", msg_type="availability")
