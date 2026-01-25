@@ -826,30 +826,30 @@ class MQTTGateway(Node):
 
     def start(self, with_health: bool = True) -> None:
         # Connect to MQTT first before initializing publishers
-        print("DEBUG MQTT: About to call self.run()")
+        print("DEBUG MQTT: About to call self.run()", flush=True)
         self.run()
-        print("DEBUG MQTT: self.run() completed, about to init components")
+        print("DEBUG MQTT: self.run() completed, about to init components", flush=True)
 
         # Now initialize components that create publishers
-        print("DEBUG MQTT: init_logger")
+        print("DEBUG MQTT: init_logger", flush=True)
         self._init_logger()
-        print("DEBUG MQTT: init_notifier")
+        print("DEBUG MQTT: init_notifier", flush=True)
         self._init_notifier()
-        print("DEBUG MQTT: init_status_updates")
+        print("DEBUG MQTT: init_status_updates", flush=True)
         self._init_status_updates()
-        print("DEBUG MQTT: init_commands")
+        print("DEBUG MQTT: init_commands", flush=True)
         self._init_commands()
-        print("DEBUG MQTT: init_external_events")
+        print("DEBUG MQTT: init_external_events", flush=True)
         self._init_external_events()
-        print("DEBUG MQTT: All components initialized")
+        print("DEBUG MQTT: All components initialized", flush=True)
 
         # Start any publishers/subscribers created after run()
         endpoints_list = list(self.endpoints)
-        print(f"DEBUG MQTT: Starting {len(endpoints_list)} endpoints")
+        print(f"DEBUG MQTT: Starting {len(endpoints_list)} endpoints", flush=True)
         for endpoint in endpoints_list:
-            print(f"DEBUG MQTT: Endpoint {type(endpoint).__name__} state={endpoint._state}")
+            print(f"DEBUG MQTT: Endpoint {type(endpoint).__name__} state={endpoint._state}", flush=True)
             if endpoint._state == EndpointState.DISCONNECTED:
-                print(f"DEBUG MQTT: Running endpoint {type(endpoint).__name__}")
+                print(f"DEBUG MQTT: Running endpoint {type(endpoint).__name__}", flush=True)
                 endpoint.run()
 
         if with_health:
