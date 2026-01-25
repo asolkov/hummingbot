@@ -824,6 +824,10 @@ class MQTTGateway(Node):
         self._stop_event_async.set()
 
     def start(self, with_health: bool = True) -> None:
+        # Connect to MQTT first before initializing publishers
+        self.run()
+
+        # Now initialize components that create publishers
         self._init_logger()
         self._init_notifier()
         self._init_status_updates()
@@ -833,7 +837,6 @@ class MQTTGateway(Node):
         if with_health:
             self._start_health_monitoring_loop()
 
-        self.run()
         self.broadcast_status_update("online", msg_type="availability")
 
     def stop(self, with_health: bool = True):
