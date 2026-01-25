@@ -22,6 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from hummingbot.core.event.event_listener import EventListener  # noqa: F401
 
 from commlib.node import Node, NodeState
+from commlib.endpoints import EndpointState
 from commlib.transports.mqtt import ConnectionParameters as MQTTConnectionParameters
 
 from hummingbot.core.data_type.trade_fee import AddedToCostTradeFee, DeductedFromReturnsTradeFee
@@ -836,7 +837,7 @@ class MQTTGateway(Node):
 
         # Start any publishers/subscribers created after run()
         for endpoint in self.endpoints:
-            if not endpoint.connected:
+            if endpoint._state == EndpointState.DISCONNECTED:
                 endpoint.run()
 
         if with_health:
