@@ -826,9 +826,15 @@ class MQTTGateway(Node):
 
     def start(self, with_health: bool = True) -> None:
         # Connect to MQTT first before initializing publishers
-        print("DEBUG MQTT: About to call self.run()", flush=True)
-        self.run()
-        print("DEBUG MQTT: self.run() completed, about to init components", flush=True)
+        # Note: run(wait=False) because we have no endpoints yet, wait for transport instead
+        print("DEBUG MQTT: About to call self.run(wait=False)", flush=True)
+        self.run(wait=False)
+
+        # Wait for transport to connect
+        print("DEBUG MQTT: Waiting for transport connection", flush=True)
+        while not self._transport.is_connected:
+            time.sleep(0.01)
+        print("DEBUG MQTT: Transport connected, about to init components", flush=True)
 
         # Now initialize components that create publishers
         print("DEBUG MQTT: init_logger", flush=True)
