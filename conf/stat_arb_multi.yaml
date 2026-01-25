@@ -1,0 +1,91 @@
+# Multi-Pair Statistical Arbitrage Strategy Configuration
+# Used by StatArbMultiPairStrategy to manage multiple pairs from database
+
+strategy:
+  # Maximum number of pairs to trade simultaneously
+  max_pairs: 8
+
+  # Minimum composite score for pair selection (null = no filter)
+  min_composite_score: null
+
+  # State filter for pairs from database
+  pair_state_filter: "active"
+
+  # Trading mode: "demo" for paper trading, "live" for real trading
+  trading_mode: "demo"
+
+  # Hummingbot connector name
+  connector_name: "okx_perpetual_demo"
+
+  # Enable logging signals and trades to TimescaleDB
+  enable_db_logging: true
+
+capital:
+  # Total capital in quote currency (USDT)
+  total_capital_quote: 1000
+
+  # Maximum capital per pair as percentage of total (0.2 = 20%)
+  max_capital_per_pair_pct: 0.2
+
+  # Capital to keep in reserve (0.1 = 10%)
+  reserve_capital_pct: 0.1
+
+  # Leverage for perpetual contracts
+  leverage: 5
+
+  # Use position_size_pct from database (true) or equal allocation (false)
+  use_db_position_size: true
+
+refresh:
+  # Enable daily refresh of pairs from database
+  enable_daily_refresh: true
+
+  # Time to refresh pairs (UTC)
+  refresh_hour_utc: 0
+  refresh_minute_utc: 5
+
+  # Hours to wait for natural exit on removed pairs
+  graceful_exit_hours: 72
+
+  # Force close removed pairs after this many hours
+  force_close_after_hours: 96
+
+risk:
+  # Default take profit percentage (0.02 = 2%)
+  default_take_profit_pct: 0.02
+
+  # Default stop loss percentage (0.05 = 5%)
+  default_stop_loss_pct: 0.05
+
+  # Default time limit for positions in hours (72 = 3 days)
+  default_time_limit_hours: 72
+
+execution:
+  # Use limit orders for entry (true) or market orders (false)
+  use_limit_orders: true
+
+  # Spread from mid price for limit orders (0.0001 = 0.01%)
+  limit_order_spread_pct: 0.0001
+
+  # Refresh unfilled orders after this many seconds
+  order_refresh_seconds: 30
+
+# Path to base stat_arb config for signal calculation settings
+# Uncomment to use custom base config
+# base_config_path: "config/stat_arb_default.yaml"
+
+# Symbols not available on OKX demo trading
+# These symbols will be filtered out when trading_mode="demo"
+# Format: base currency (without -USDT suffix)
+demo_excluded_symbols:
+  - "ONDO"
+  - "VIRTUAL"
+  - "HYPE"
+  - "FARTCOIN"
+  - "AI16Z"
+  - "GRIFFAIN"
+  - "ZEREBRO"
+  - "GOAT"
+  - "PENGU"
+  - "ENA"
+  # Add more as discovered...

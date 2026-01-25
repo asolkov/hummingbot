@@ -1,0 +1,180 @@
+# Statistical Arbitrage Default Configuration
+# See docs/stat_arb/configuration.md for full reference
+
+global:
+  recalibration_frequency: "daily"
+  total_capital_usd: 100000
+  max_pairs_active: 8
+  log_level: "INFO"
+
+universe:
+  volume_lookback_days: 7  # Reduced from 30 for faster processing
+  min_avg_volume_7d_usd: 10000000
+  max_gap_percentage: 0.01
+  max_consecutive_gaps: 10 #was 5
+
+cointegration:
+  adf_pvalue_threshold: 0.05
+  hurst_max: 0.5
+  half_life_min_bars: 60
+  half_life_max_bars: 2880
+  hedge_ratio_method: "ols" # possible: ols, kalman, tls, adf_optimal, half_life_min
+  max_pairs_to_test: 500
+  save_all_results: true  # Save all pairs (including failing) for analysis
+  allow_negative_hedge_ratio: false  # Filter out pairs with negative hedge ratios
+  # Volatility ratio filter: reject pairs where vol_max / vol_min > threshold
+  # ETH/MOODENG had ~5x volatility mismatch causing losses despite z-score reversion
+  # 0 = disabled
+  max_volatility_ratio: 5.0
+  # Price ratio filter: reject pairs where price_max / price_min > threshold
+  # ETH ($2500) / MOODENG ($0.20) = 12,500x - way too extreme
+  # 0 = disabled
+  max_price_ratio: 1000.0
+  # Periodic hedge ratio recalculation (matches live trading behavior)
+  # 0 = disabled (use fixed hedge ratio from training)
+  # 60 = recalculate every 60 bars (1 hour for 1-min data)
+  hedge_ratio_recalc_bars: 60
+  # Lookback window for OLS hedge ratio calculation
+  hedge_ratio_lookback_bars: 1440  # 24 hours of 1-min bars
+
+copula:
+  types:
+    - "student_t"
+    - "clayton"
+    - "gumbel"
+  selection_criterion: "bic"
+
+backtest:
+  spread_lookback: 1440  # Try 100-200 range
+  training_window_days: 5 # was 7
+  embargo_days: 1
+  test_window_days: 3 # was 3
+  # Default entry/exit thresholds (used when optimization.enabled=false)
+  entry_lower: 0.01
+  entry_upper: 0.99
+  exit_lower: 0.45
+  exit_upper: 0.55
+  max_holding_bars: 14400
+  # No-entry zone: prevent entries in last N bars to avoid forced_close trades
+  # 1440 = 1 day for 1-minute bars
+  no_entry_before_end_bars: 1440
+  use_profitability_gate: true
+  # Debug settings - enable to save all potential signals to debug_signals table
+  collect_debug_signals: true
+
+  # Minimum spread z-score filter
+  # Only enter positions when |spread_zscore| >= threshold
+  # Filters out weak divergence signals where copula shows extreme prob but spread hasn't moved enough
+  min_spread_zscore: 2.0  # 0.0 = disabled, 2.0 = ~2 sigma threshold
+
+  # GARCH normalization settings
+  # When enabled, normalizes returns by conditional volatility before:
+  # 1. Copula fitting (stabilizes parameter estimation across volatility regimes)
+  # 2. Signal generation (more calibrated conditional probabilities)
+  use_garch_normalization: true
+  garch_p: 1  # GARCH lag order
+  garch_q: 1  # ARCH lag order
+
+  # Signal generation mode
+  # "copula" - use copula conditional probabilities for entry/exit signals
+  # "zscore" - use spread z-score directly (simpler, more intuitive)
+  signal_mode: "zscore"
+
+  # Z-score signal thresholds (used when signal_mode="zscore")
+  zscore_entry_threshold: 2.0   # Enter when |signed_zscore| > this
+  zscore_exit_threshold: 0.5    # Exit when |signed_zscore| < this
+
+# VectorBTpro parameter optimization
+# When enabled, grid search finds optimal params on training window
+optimization:
+  enabled: false
+  param_grid:
+    entry_lower: [0.01] # [0.02, 0.03, 0.05]
+    entry_upper: [0.99] # [0.95, 0.97, 0.98]
+    exit_lower: [0.4] #[0.40, 0.45, 0.50]
+    exit_upper: [0.6] #[0.50, 0.55, 0.60]
+    max_holding_bars: [7200] # [7200, 10080, 14400]
+    position_size_pct: [0.1] #[0.05, 0.10, 0.15]
+    fee_assumption: [0.0005] # [0.0005, 0.0007, 0.001]
+  selection_metric: "sharpe_ratio"
+  constraints:
+    max_drawdown: 0.20
+    min_trades: 5
+
+fees:
+  maker_spot: 0.0008
+  taker_spot: 0.001
+  maker_swap: 0.0002
+  taker_swap: 0.0005
+  slippage: 0.0002
+
+selection:
+  min_sharpe: 1.5
+  max_drawdown: 0.10
+  min_win_rate: 0.45
+  max_pairs_per_cluster: 2
+  score_weights:
+    # Core metrics (total: 0.85)
+    sharpe: 0.35                  # Risk-adjusted return (reduced from 0.4)
+    max_dd_inv: 0.25              # Drawdown penalty (reduced from 0.3)
+    win_rate: 0.15                # Win rate (reduced from 0.2)
+    turnover_efficiency: 0.10    # Trade frequency (unchanged)
+    # Quality metrics (total: 0.15) - P0 enhancements
+    clean_exit_ratio: 0.10       # Reward pairs exiting via signal (vs forced_close)
+    funding_independence: 0.05   # Penalize pairs dependent on funding carry
+  # Additional post-backtest filters
+  min_total_pnl: 0.0           # Reject pairs with negative total PnL
+  min_trades: 5                 # Require at least 5 trades for statistical significance
+  min_avg_trade_return: 0.0     # Require non-negative average trade return (0.01 = 1%)
+  max_avg_holding_bars: 2880    # Max avg holding ~2 days (0 = disabled)
+  # Quality metric filters (optional)
+  min_clean_exit_ratio: 0.0    # Minimum clean exit ratio (0 = disabled, 0.3 = 30%)
+  max_funding_pnl_ratio: 0.0   # Maximum funding dependency (0 = disabled, 0.5 = 50%)
+
+risk:
+  position_sizing: "quarter_kelly"
+  fixed_position_pct: 0.05
+  pair_drawdown_limit: 0.08
+  portfolio_drawdown_limit: 0.15
+  max_gross_exposure: 2.0
+  max_net_exposure: 0.3
+
+regime:
+  volatility_percentile: 0.90
+  funding_dispersion_std: 2.0
+
+execution:
+  limit_order_timeout_sec: 30
+  leg_imbalance_timeout_sec: 60
+  use_maker_orders: true
+  order_type: "limit"
+
+state_machine:
+  cooling_off_days: 3
+  min_consecutive_passes: 2
+  testnet_validation_days: 7
+
+# Pair continuity settings for reducing daily portfolio turnover
+# Controls how aggressively pairs are replaced during daily recalibration
+continuity:
+  # Replacement threshold: new pair must score X% better than incumbent to replace it
+  # 0.15 = new candidate needs 15% higher composite score to displace incumbent
+  # Set to 0.0 to disable (pure ranking behavior, high turnover)
+  replacement_threshold: 0.15
+
+  # Position protection: keep pairs with open positions until they close
+  # When True, pairs with active trades won't be removed even if they fail filters
+  protect_open_positions: true
+
+  # Minimum tenure: pairs selected for < N days get protection from replacement
+  # Prevents immediate churn of newly added pairs
+  min_tenure_days: 1
+
+  # Soft filter grace period: pairs failing soft filters stay for N additional days
+  # Soft filters: clean_exit_ratio, funding_pnl_ratio thresholds
+  # Hard filters: min_sharpe, max_drawdown, min_win_rate (no grace period)
+  soft_filter_grace_days: 2
+
+  # Maximum tenure: force rotation after N days even if pair is performing
+  # 0 = disabled (no forced rotation)
+  max_tenure_days: 0
