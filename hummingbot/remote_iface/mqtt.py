@@ -834,6 +834,11 @@ class MQTTGateway(Node):
         self._init_commands()
         self._init_external_events()
 
+        # Start any publishers/subscribers created after run()
+        for endpoint in self.endpoints:
+            if not endpoint.connected:
+                endpoint.run()
+
         if with_health:
             self._start_health_monitoring_loop()
 
