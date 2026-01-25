@@ -837,11 +837,11 @@ class MQTTGateway(Node):
 
         # Start any publishers/subscribers created after run()
         endpoints_list = list(self.endpoints)
-        self.logger().info(f"MQTT: Starting {len(endpoints_list)} endpoints")
+        print(f"DEBUG MQTT: Starting {len(endpoints_list)} endpoints")
         for endpoint in endpoints_list:
-            self.logger().info(f"MQTT: Endpoint {type(endpoint).__name__} state={endpoint._state}")
+            print(f"DEBUG MQTT: Endpoint {type(endpoint).__name__} state={endpoint._state}")
             if endpoint._state == EndpointState.DISCONNECTED:
-                self.logger().info(f"MQTT: Running endpoint {type(endpoint).__name__}")
+                print(f"DEBUG MQTT: Running endpoint {type(endpoint).__name__}")
                 endpoint.run()
 
         if with_health:
