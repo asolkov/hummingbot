@@ -826,47 +826,29 @@ class MQTTGateway(Node):
 
     def start(self, with_health: bool = True) -> None:
         # Connect to MQTT first before initializing publishers
-        # Note: run(wait=False) because we have no endpoints yet
-        print("DEBUG MQTT: About to call self.run(wait=False)", flush=True)
+        # Note: run(wait=False) because we have no endpoints yet (health check would fail)
         self.run(wait=False)
 
-        # Brief delay to let transport connect (it logs "Connected to MQTT Broker" inside run)
-        print("DEBUG MQTT: run() completed, brief delay for connection setup", flush=True)
+        # Brief delay to let transport connect
         time.sleep(0.5)
-        print("DEBUG MQTT: About to init components", flush=True)
 
         # Now initialize components that create publishers
-        print("DEBUG MQTT: init_logger", flush=True)
         self._init_logger()
-        print("DEBUG MQTT: init_notifier", flush=True)
         self._init_notifier()
-        print("DEBUG MQTT: init_status_updates", flush=True)
         self._init_status_updates()
-        print("DEBUG MQTT: init_commands", flush=True)
         self._init_commands()
-        print("DEBUG MQTT: init_external_events", flush=True)
         self._init_external_events()
-        print("DEBUG MQTT: All components initialized", flush=True)
 
         # Start any publishers/subscribers created after run()
-        endpoints_list = list(self.endpoints)
-        print(f"DEBUG MQTT: Starting {len(endpoints_list)} endpoints", flush=True)
-        for endpoint in endpoints_list:
-            print(f"DEBUG MQTT: Endpoint {type(endpoint).__name__} state={endpoint._state}", flush=True)
+        # These endpoints were created but not started since run() was called before them
+        for endpoint in list(self.endpoints):
             if endpoint._state == EndpointState.DISCONNECTED:
-                print(f"DEBUG MQTT: Running endpoint {type(endpoint).__name__}", flush=True)
                 endpoint.run()
 
-        print("DEBUG MQTT: Endpoint loop completed", flush=True)
-
         if with_health:
-            print("DEBUG MQTT: Starting health monitoring loop", flush=True)
             self._start_health_monitoring_loop()
-            print("DEBUG MQTT: Health monitoring loop started", flush=True)
 
-        print("DEBUG MQTT: Broadcasting online status", flush=True)
         self.broadcast_status_update("online", msg_type="availability")
-        print("DEBUG MQTT: Online status broadcast complete", flush=True)
 
     def stop(self, with_health: bool = True):
         self.broadcast_status_update("offline", msg_type="availability")
