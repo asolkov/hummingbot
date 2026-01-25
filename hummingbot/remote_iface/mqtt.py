@@ -826,14 +826,22 @@ class MQTTGateway(Node):
 
     def start(self, with_health: bool = True) -> None:
         # Connect to MQTT first before initializing publishers
+        print("DEBUG MQTT: About to call self.run()")
         self.run()
+        print("DEBUG MQTT: self.run() completed, about to init components")
 
         # Now initialize components that create publishers
+        print("DEBUG MQTT: init_logger")
         self._init_logger()
+        print("DEBUG MQTT: init_notifier")
         self._init_notifier()
+        print("DEBUG MQTT: init_status_updates")
         self._init_status_updates()
+        print("DEBUG MQTT: init_commands")
         self._init_commands()
+        print("DEBUG MQTT: init_external_events")
         self._init_external_events()
+        print("DEBUG MQTT: All components initialized")
 
         # Start any publishers/subscribers created after run()
         endpoints_list = list(self.endpoints)
