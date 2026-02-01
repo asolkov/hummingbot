@@ -254,7 +254,7 @@ def _build_private_general_rate_limits() -> List[RateLimit]:
         RateLimit(
             limit_id=get_rest_api_limit_id_for_endpoint(method=CONSTANTS.REST_SET_LEVERAGE[CONSTANTS.METHOD],
                                                         endpoint=CONSTANTS.REST_SET_LEVERAGE[CONSTANTS.ENDPOINT]),
-            limit=3,  # Conservative limit to avoid 429 errors with multiple pairs
+            limit=1,  # Very conservative: 1 call per 2 seconds to avoid 429 errors
             time_interval=2,
         ),
         RateLimit(

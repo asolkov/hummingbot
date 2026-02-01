@@ -38,5 +38,5 @@ MAX_RESULTS_PER_CANDLESTICK_REST_REQUEST = 100
 HEALTH_CHECK_ENDPOINT = "/api/v5/public/time"
 
 RATE_LIMITS = [
-    RateLimit(CANDLES_ENDPOINT, limit=20, time_interval=2, linked_limits=[LinkedLimitWeightPair("raw", 1)]),
+    RateLimit(CANDLES_ENDPOINT, limit=3, time_interval=2, linked_limits=[LinkedLimitWeightPair("raw", 1)]),  # Reduced from 20 to limit initial candles fetch burst
     RateLimit(HEALTH_CHECK_ENDPOINT, limit=10, time_interval=2, linked_limits=[LinkedLimitWeightPair("raw", 1)])]
