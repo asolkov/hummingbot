@@ -767,10 +767,16 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
 
         data = {"posMode": api_mode}
 
+        # Use correct limit_id to enable throttler rate limiting
+        limit_id = web_utils.get_rest_api_limit_id_for_endpoint(
+            method=CONSTANTS.REST_SET_POSITION_MODE[CONSTANTS.METHOD],
+            endpoint=CONSTANTS.REST_SET_POSITION_MODE[CONSTANTS.ENDPOINT]
+        )
         response = await self._api_post(
             path_url=CONSTANTS.REST_SET_POSITION_MODE[CONSTANTS.ENDPOINT],
             data=data,
             is_auth_required=True,
+            limit_id=limit_id,
         )
 
         response_code = response["code"]
@@ -792,11 +798,17 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
             "lever": leverage,
             "mgnMode": "cross"
         }
+        # Use correct limit_id to enable throttler rate limiting
+        limit_id = web_utils.get_rest_api_limit_id_for_endpoint(
+            method=CONSTANTS.REST_SET_LEVERAGE[CONSTANTS.METHOD],
+            endpoint=CONSTANTS.REST_SET_LEVERAGE[CONSTANTS.ENDPOINT]
+        )
         resp: Dict[str, Any] = await self._api_post(
             path_url=CONSTANTS.REST_SET_LEVERAGE[CONSTANTS.ENDPOINT],
             data=data,
             is_auth_required=True,
             trading_pair=trading_pair,
+            limit_id=limit_id,
         )
 
         if resp["code"] == CONSTANTS.RET_CODE_OK:
