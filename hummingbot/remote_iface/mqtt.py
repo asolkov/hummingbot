@@ -561,6 +561,7 @@ class MQTTGateway(Node):
     _INTERVAL_HEALTH_CHECK = 1.0
     _INTERVAL_RESTART_SHORT = 5.0
     _INTERVAL_RESTART_LONG = 10.0
+    _INTERVAL_HEARTBEAT = 20.0  # Publish heartbeat every 20 seconds (must be < 30s for discovery)
 
     @classmethod
     def logger(cls) -> HummingbotLogger:
@@ -598,13 +599,15 @@ class MQTTGateway(Node):
             namespace=self.namespace,
             instance_id=self._hb_app.instance_id
         )
-        _hb_topic = f'{self._topic_prefix}{TopicSpecs.HEARTBEATS}'
+        self._hb_topic = f'{self._topic_prefix}{TopicSpecs.HEARTBEATS}'
+        self._heartbeat_pub = None  # Will be initialized in start()
+        self._last_heartbeat_time = 0.0
 
         super().__init__(
             node_name=self.NODE_NAME.replace('$instance_id', hb_app.instance_id),
             connection_params=self._params,
             heartbeats=True,
-            heartbeat_uri=_hb_topic,
+            heartbeat_uri=self._hb_topic,
             *args,
             **kwargs
         )
@@ -785,9 +788,34 @@ class MQTTGateway(Node):
                     self._initial_connection_succeeded = True
                     self._hb_app.logger().debug('Monitoring MQTT Gateway health for disconnections.')
 
+                # Publish heartbeat periodically to keep bot discoverable
+                current_time = time.time()
+                time_since_last = current_time - self._last_heartbeat_time
+                if time_since_last >= self._INTERVAL_HEARTBEAT:
+                    self._hb_app.logger().info(f'Heartbeat interval reached ({time_since_last:.1f}s), publishing...')
+                    await self._publish_heartbeat()
+                    self._last_heartbeat_time = current_time
+
                 await asyncio.sleep(self._INTERVAL_HEALTH_CHECK)
             elif self._initial_connection_succeeded and not self._stop_event_async.is_set():
                 await self._restart_gateway()
+
+    async def _publish_heartbeat(self):
+        """Publish a heartbeat message to keep the bot discoverable by hummingbot-api.
+
+        Uses the notifier publisher as it's already initialized with a working transport.
+        """
+        try:
+            # Use the notifier's publisher which is already connected
+            if hasattr(self, '_notifier') and self._notifier is not None:
+                # Send a heartbeat message through the notify channel
+                heartbeat_msg = f"[HEARTBEAT] {self._hb_app.instance_id} online"
+                self._notifier.add_msg_to_queue(heartbeat_msg)
+                self._hb_app.logger().info(f'Published MQTT heartbeat via notify channel')
+            else:
+                self._hb_app.logger().warning('Notifier not available for heartbeat')
+        except Exception as e:
+            self._hb_app.logger().warning(f'Failed to publish MQTT heartbeat: {e}')
 
     async def _restart_gateway(self):
         self._hb_app.logger().warning('MQTT Gateway is disconnected, attempting to reconnect.')
