@@ -254,7 +254,7 @@ def _build_private_general_rate_limits() -> List[RateLimit]:
         RateLimit(
             limit_id=get_rest_api_limit_id_for_endpoint(method=CONSTANTS.REST_SET_LEVERAGE[CONSTANTS.METHOD],
                                                         endpoint=CONSTANTS.REST_SET_LEVERAGE[CONSTANTS.ENDPOINT]),
-            limit=20,
+            limit=5,  # Reduced from 20 - OKX account endpoints typically allow 5-10 req/2s
             time_interval=2,
         ),
         RateLimit(
