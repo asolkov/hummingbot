@@ -792,7 +792,7 @@ class MQTTGateway(Node):
                 current_time = time.time()
                 time_since_last = current_time - self._last_heartbeat_time
                 if time_since_last >= self._INTERVAL_HEARTBEAT:
-                    self._hb_app.logger().info(f'Heartbeat interval reached ({time_since_last:.1f}s), publishing...')
+                    self._hb_app.logger().debug(f'Heartbeat interval reached ({time_since_last:.1f}s), publishing...')
                     await self._publish_heartbeat()
                     self._last_heartbeat_time = current_time
 
@@ -811,7 +811,7 @@ class MQTTGateway(Node):
                 # Send a heartbeat message through the notify channel
                 heartbeat_msg = f"[HEARTBEAT] {self._hb_app.instance_id} online"
                 self._notifier.add_msg_to_queue(heartbeat_msg)
-                self._hb_app.logger().info(f'Published MQTT heartbeat via notify channel')
+                self._hb_app.logger().debug(f'Published MQTT heartbeat via notify channel')
             else:
                 self._hb_app.logger().warning('Notifier not available for heartbeat')
         except Exception as e:
