@@ -108,6 +108,20 @@ class ExecutorBase(RunnableBase):
         """
         Returns the executor info.
         """
+        # Sanitize NaN values BEFORE Pydantic validation (which rejects non-finite Decimals)
+        filled_amount_quote = self.filled_amount_quote
+        net_pnl_quote = self.net_pnl_quote
+        cum_fees_quote = self.cum_fees_quote
+        net_pnl_pct = self.net_pnl_pct
+        if isinstance(filled_amount_quote, Decimal) and filled_amount_quote.is_nan():
+            filled_amount_quote = Decimal("0")
+        if isinstance(net_pnl_quote, Decimal) and net_pnl_quote.is_nan():
+            net_pnl_quote = Decimal("0")
+        if isinstance(cum_fees_quote, Decimal) and cum_fees_quote.is_nan():
+            cum_fees_quote = Decimal("0")
+        if isinstance(net_pnl_pct, Decimal) and net_pnl_pct.is_nan():
+            net_pnl_pct = Decimal("0")
+
         ei = ExecutorInfo(
             id=self.config.id,
             timestamp=self.config.timestamp,
@@ -116,19 +130,15 @@ class ExecutorBase(RunnableBase):
             close_type=self.close_type,
             close_timestamp=self.close_timestamp,
             config=self.config,
-            net_pnl_pct=self.net_pnl_pct,
-            net_pnl_quote=self.net_pnl_quote,
-            cum_fees_quote=self.cum_fees_quote,
-            filled_amount_quote=self.filled_amount_quote,
+            net_pnl_pct=net_pnl_pct,
+            net_pnl_quote=net_pnl_quote,
+            cum_fees_quote=cum_fees_quote,
+            filled_amount_quote=filled_amount_quote,
             is_active=self.is_active,
             is_trading=self.is_trading,
             custom_info=self.get_custom_info(),
             controller_id=self.config.controller_id,
         )
-        ei.filled_amount_quote = ei.filled_amount_quote if not ei.filled_amount_quote.is_nan() else Decimal("0")
-        ei.net_pnl_quote = ei.net_pnl_quote if not ei.net_pnl_quote.is_nan() else Decimal("0")
-        ei.cum_fees_quote = ei.cum_fees_quote if not ei.cum_fees_quote.is_nan() else Decimal("0")
-        ei.net_pnl_pct = ei.net_pnl_pct if not ei.net_pnl_pct.is_nan() else Decimal("0")
         return ei
 
     def get_custom_info(self) -> Dict:
