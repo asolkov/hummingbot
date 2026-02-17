@@ -67,7 +67,7 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
     async def _request_order_book_snapshot(self, trading_pair: str) -> Dict[str, Any]:
         params = {
             "instId": await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair),
-            "sz": "400"
+            "sz": "5"
         }
 
         rest_assistant = await self._api_factory.get_rest_assistant()
@@ -226,7 +226,7 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
 
             order_book_args = [
                 {
-                    "channel": CONSTANTS.WS_ORDER_BOOK_400_DEPTH_100_MS_EVENTS_CHANNEL,
+                    "channel": CONSTANTS.WS_ORDER_BOOK_5_DEPTH_100_MS_EVENTS_CHANNEL,
                     "instId": ex_trading_pair
                 } for ex_trading_pair in ex_trading_pairs
             ]
@@ -440,10 +440,10 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             event_channel = event_message["arg"]["channel"]
             if event_channel == CONSTANTS.WS_TRADES_CHANNEL:
                 channel = self._trade_messages_queue_key
-            elif (event_channel == CONSTANTS.WS_ORDER_BOOK_400_DEPTH_100_MS_EVENTS_CHANNEL
+            elif (event_channel == CONSTANTS.WS_ORDER_BOOK_5_DEPTH_100_MS_EVENTS_CHANNEL
                   and event_message["action"] == "update"):
                 channel = self._diff_messages_queue_key
-            elif (event_channel == CONSTANTS.WS_ORDER_BOOK_400_DEPTH_100_MS_EVENTS_CHANNEL
+            elif (event_channel == CONSTANTS.WS_ORDER_BOOK_5_DEPTH_100_MS_EVENTS_CHANNEL
                   and event_message["action"] == "snapshot"):
                 channel = self._snapshot_messages_queue_key
             elif event_channel == CONSTANTS.WS_INSTRUMENTS_INFO_CHANNEL:
