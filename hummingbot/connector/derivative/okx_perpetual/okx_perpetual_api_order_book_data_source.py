@@ -440,11 +440,8 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             event_channel = event_message["arg"]["channel"]
             if event_channel == CONSTANTS.WS_TRADES_CHANNEL:
                 channel = self._trade_messages_queue_key
-            elif (event_channel == CONSTANTS.WS_ORDER_BOOK_5_DEPTH_100_MS_EVENTS_CHANNEL
-                  and event_message["action"] == "update"):
-                channel = self._diff_messages_queue_key
-            elif (event_channel == CONSTANTS.WS_ORDER_BOOK_5_DEPTH_100_MS_EVENTS_CHANNEL
-                  and event_message["action"] == "snapshot"):
+            elif event_channel == CONSTANTS.WS_ORDER_BOOK_5_DEPTH_100_MS_EVENTS_CHANNEL:
+                # books5 always sends full snapshots (no action field, no incremental diffs)
                 channel = self._snapshot_messages_queue_key
             elif event_channel == CONSTANTS.WS_INSTRUMENTS_INFO_CHANNEL:
                 channel = self._funding_info_messages_queue_key
