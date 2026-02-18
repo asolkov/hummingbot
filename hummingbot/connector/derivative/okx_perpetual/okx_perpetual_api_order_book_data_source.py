@@ -35,6 +35,15 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         self._api_factory = api_factory
         self._domain = domain
         self._nonce_provider = NonceCreator.for_microseconds()
+
+        # Bound message queues to prevent unbounded growth from fast WebSocket data.
+        # Strategy only needs latest prices; older queued messages are stale.
+        _QUEUE_MAXSIZE = 50
+        for key in [self._snapshot_messages_queue_key, self._diff_messages_queue_key,
+                    self._trade_messages_queue_key, self._funding_info_messages_queue_key,
+                    self._mark_price_queue_key, self._index_price_queue_key]:
+            self._message_queue[key] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
+
         self._last_index_price = None
         self._last_mark_price = None
         self._last_next_funding_utc_timestamp = None
@@ -67,7 +76,7 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
     async def _request_order_book_snapshot(self, trading_pair: str) -> Dict[str, Any]:
         params = {
             "instId": await self._connector.exchange_symbol_associated_to_pair(trading_pair=trading_pair),
-            "sz": "5"
+            "sz": "1"
         }
 
         rest_assistant = await self._api_factory.get_rest_assistant()
@@ -226,7 +235,7 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
 
             order_book_args = [
                 {
-                    "channel": CONSTANTS.WS_ORDER_BOOK_5_DEPTH_100_MS_EVENTS_CHANNEL,
+                    "channel": CONSTANTS.WS_ORDER_BOOK_1_DEPTH_10_MS_EVENTS_CHANNEL,
                     "instId": ex_trading_pair
                 } for ex_trading_pair in ex_trading_pairs
             ]
@@ -440,8 +449,8 @@ class OkxPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             event_channel = event_message["arg"]["channel"]
             if event_channel == CONSTANTS.WS_TRADES_CHANNEL:
                 channel = self._trade_messages_queue_key
-            elif event_channel == CONSTANTS.WS_ORDER_BOOK_5_DEPTH_100_MS_EVENTS_CHANNEL:
-                # books5 always sends full snapshots (no action field, no incremental diffs)
+            elif event_channel == CONSTANTS.WS_ORDER_BOOK_1_DEPTH_10_MS_EVENTS_CHANNEL:
+                # bbo-tbt sends full best-bid/offer snapshots (no action field, no diffs)
                 channel = self._snapshot_messages_queue_key
             elif event_channel == CONSTANTS.WS_INSTRUMENTS_INFO_CHANNEL:
                 channel = self._funding_info_messages_queue_key

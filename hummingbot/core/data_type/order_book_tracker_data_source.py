@@ -236,7 +236,19 @@ class OrderBookTrackerDataSource(metaclass=ABCMeta):
                 channel: str = self._channel_originating_message(event_message=data)
                 valid_channels = self._get_messages_queue_keys()
                 if channel in valid_channels:
-                    self._message_queue[channel].put_nowait(data)
+                    queue = self._message_queue[channel]
+                    try:
+                        queue.put_nowait(data)
+                    except asyncio.QueueFull:
+                        # Drop oldest message — latest market data wins
+                        try:
+                            queue.get_nowait()
+                        except asyncio.QueueEmpty:
+                            pass
+                        try:
+                            queue.put_nowait(data)
+                        except asyncio.QueueFull:
+                            pass
                 else:
                     await self._process_message_for_unknown_channel(
                         event_message=data, websocket_assistant=websocket_assistant
