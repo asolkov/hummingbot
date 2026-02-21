@@ -191,9 +191,9 @@ class OkxPerpetualDerivative(PerpetualDerivativePyBase):
     def start(self, clock: Clock, timestamp: float):
         super().start(clock, timestamp)
         if self._domain in (CONSTANTS.DEFAULT_DOMAIN, CONSTANTS.DEMO_DOMAIN, CONSTANTS.AWS_DOMAIN) and self.is_trading_required:
-            # Set internal mode to HEDGE immediately (ensures correct posSide even if API call fails)
-            self._perpetual_trading.set_position_mode(PositionMode.HEDGE)
-            # Also try to set it on the exchange (may fail if positions exist, which is ok)
+            # Set position mode to HEDGE on the exchange and update internal state
+            # NOTE: Do NOT set internal mode before the API call — the parent class
+            # skips the API call if internal mode already matches the requested mode.
             self.set_position_mode(PositionMode.HEDGE)
 
     def _get_fee(self,
